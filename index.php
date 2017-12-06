@@ -3,67 +3,37 @@
 	$db_user = 'root';
 	$db_password = 'ef37au82';
 	$db_name = 'students';
-	$link = mysqli_connect($db_host, $db_user, $db_password, $db_name);
+	$link = new PDO('mysql:host=' . $db_host . ';dbname=' . $db_name . ', $db_user, $db_password, array(
+		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+	));
 
 	if (!$link) {
     	die('<p style="color:red">'.mysqli_connect_errno().' - '.mysqli_connect_error().'</p>');
-	echo "cool";
-}
-	$result = mysqli_query($link, "SELECT * FROM students;");
+}	
+$result = array();
 	switch ($_GET['operation']){
-		case 'all':
-			echo '<p>Все пользователи: </p><ul>';
-			while ($row = mysqli_fetch_row($result)) {
-				$row1 = utf8_encode($row[1]);
-				echo "<li>{$row[0]} {$row[1]} {$row[2]} {$row[3]} {$row[4]} {$row[5]} {$row[6]} {$row[7]}</li>";
-			}
-			echo '</ul>';
+		case 'all': {
+			$result = $link->query("SELECT * FROM students;")->fetchAll();
 			break;
-		case 'get':
-			$contains = mysqli_query($link,"SELECT * FROM students WHERE ID={$_GET['num']};");
-			if ($contains->num_rows>0){
-				echo "yes";
-			}
-			else{
-				echo "no";
-			}
+		}
+		case 'id': {
+			$statement = $link->prepare("SELECT * FROM students WHERE ID = :ID");
+			$result = $statement->execute(array(':ID' => $_GET['id']);
 			break;
-		case 'push':
-	if(isset($_GET['name']))
-	{
-	$name = $_GET['name'];
+		}
+		case 'push': {
+			$fields = array ('name', 'surname', 'middle_name', 'class_num', 'class_let', 'phone', 'face_recog')
+			foreach($fields as $field){
+				$to_ins[':' . $field] = isset($_POST[$field]) ? trim($_POST[$field]) : '';
+			}
+			$statement = $link->prepare("
+				INSERT INTO students (`Name`,`Surname`,`Middle_name`,`Class_num`,`Class_let`,`Phone`,`face_recog`) 
+				VALUES (:name, :surname, :middle_name, :class_num, :class_let, :phone, :face_recog)");
+			$statement->execute($to_ins);
+			$result['id'] = $link->lastInsertId();
+			break;
+		}
 	}
-	if(isset($_GET['surname']))
-	{
-	$surname = $_GET['surname'];
-	}
-	if(isset($_GET['middle_name']))
-	{
-	$mid_name = $_GET['middle_name'];
-	}
-	if(isset($_GET['class_num']))
-	{
-	$class_num = $_GET['class_num'];
-	}
-	if(isset($_GET['class_let']))
-	{
-	$class_let = $_GET['class_let'];
-	}
-	if(isset($_GET['phone']))
-	{
-	$phone = $_GET['phone'];
-	}
-	if(isset($_GET['face_recog']))
-	{
-	$face_recog = $_GET['face_recog'];
-	}
-
-	$push = mysqli_query($link,"INSERT INTO students (`Name`,`Surname`,`Middle_name`,`Class_num`,`Class_let`,`Phone`,`face_recog`) VALUES ('$name','$surname','$mid_name','$class_num','$class_let','$phone','$face_recog')");
-
-	if ($push==true)
-	{
-	echo "<br>Информация в базу добавлена успешно.";
-	}
-	else echo "<br>Информация в базу не добавлена.";
-	}
+	echo json_encode($result);
 ?>
