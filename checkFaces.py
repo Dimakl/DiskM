@@ -37,7 +37,6 @@ def create_threads():
     SQLthread.start()
 
 
-
 if __name__ == "__main__":
     create_threads()
     video_capture = cv2.VideoCapture(0)
