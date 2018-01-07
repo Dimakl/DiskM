@@ -1,7 +1,7 @@
 <?php
 	$db_host = 'localhost';
-	$db_user = 'root';
-	$db_password = 'ef37au82';
+	$db_user = 'usr';
+	$db_password = 'pass';
 	$db_name = 'students';
 	$link = new PDO("mysql:host=$db_host;dbname=$db_name;charset=utf8", $db_user, $db_password, array(
 		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
