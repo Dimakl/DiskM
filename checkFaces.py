@@ -1,67 +1,95 @@
-import random
-import time
-from threading import Thread
-import mysql.connector
 import face_recognition
+import pymysql.cursors
 import cv2
- 
-students = []
-studentsID = []
-lastTime = time.time()-60000
-class MySQLThread(Thread):
-    
-    def __init__(self):
-        Thread.__init__(self)
-        self.name = 'takeInfoThread'
-        self.db_host = 'localhost'
-        self.db_user = 'usr'
-        self.db_password = 'pass'
-        self.db_name = 'students'
-        self.connection = mysql.connector.connect(user=self.db_user, password=self.db_password,host=self.db_host,database=self.db_name)
-        self.query = ("SELECT * FROM students")
+import threading
+import time
+video_capture = cv2.VideoCapture(0)
+#TODO:clear this part of code
+my_image = face_recognition.load_image_file("me.jpg")
+my_face_encoding = face_recognition.face_encodings(my_image)[0]
 
-    def run(self):
-        if time.time()-lastTime>=60000:
-            lastTime = time.time()
-            self.cursor = connection.cursor()
-            cursor.execute(query)
-            students = []
-            for (name, surname, middle_name, class_num, class_let, phone, face_recog) in cursor:
-                students.append((name,surname,middle_name,class_num,class_let,phone,face_recog))
-            studentsID = []
-            for person in students:
-                studentsID.append(person[6])
+students_encodings = [
+                    my_face_encoding
+                     ]
+students_data = [
+                "Dima"
+                ]
 
-def create_threads():
-    SQLthread=MySQLThread()
-    SQLthread.start()
-
-
-if __name__ == "__main__":
-    create_threads()
-    video_capture = cv2.VideoCapture(0)
-
+HOST = 'localhost'
+USER = 'root'
+DB = 'data'
+CHARSET = 'utf8mb4'
+def get_data():
     while True:
-        ret, frame = video_capture.read()
+        connection = pymysql.connect(host=HOST,
+                                     user=USER,
+                                     password='xyzzy',
+                                     db=DB,
+                                     charset=CHARSET,
+                                     cursorclass=pymysql.cursors.DictCursor)
 
-        rgb_frame = frame[:, :, ::-1]
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * FROM `students`"
+                cursor.execute(sql)
+                result = cursor.fetchone()
+                while result is not None:
+                    print(result)
+                    result = cursor.fetchone()
+        finally:
+            connection.close()
+            time.sleep(60)
 
-        face_locations = face_recognition.face_locations(rgb_frame)
-        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+t = threading.Thread(target=get_data)
+t.start()
+print (my_face_encoding)
+face_locations = []
+face_encodings = [] #TODO: parse endcodings from MySQL DB
+face_names = [] #TODO:change to data about students
+process_this_frame = True
+while True:
+    ret, frame = video_capture.read()
+    
+    small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+    
+    rgb_small_frame = small_frame[:, :, ::-1]
+    
+    if process_this_frame:
+        face_locations = face_recognition.face_locations(rgb_small_frame)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+        
+        face_names = []
+        for face_encoding in face_encodings:
+            matches = face_recognition.compare_faces(students_encodings, face_encoding)
+            name = "Unknown"
+            
+            if True in matches:
+                first_match_index = matches.index(True)
+                name = students_data[first_match_index]
+            
+            face_names.append(name)
 
-        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-            name = "???"
-            for i in range(len(studentsID)):
-                ID = studentsID[i]
-                match = face_recognition.compare_faces([obama_face_encoding], face_encoding)
-                if match[0]:
-                    name = students[i][0]+" "+students[i][1]+" "+students[i][2]
+    process_this_frame = not process_this_frame
+    
+    
+    for (top, right, bottom, left), name in zip(face_locations, face_names):
+        top *= 4
+        right *= 4
+        bottom *= 4
+        left *= 4
+        
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+        
+        cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
+        font = cv2.FONT_HERSHEY_DUPLEX
+        cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1) #TODO: change the type of output info
 
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+    cv2.imshow('Video', frame)
 
-            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
-            font = cv2.FONT_HERSHEY_DUPLEX
-            cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-        cv2.imshow('Video', frame)
+t._stop() #TODO: fix the stop of the thread
+video_capture.release()
+cv2.destroyAllWindows()
 
