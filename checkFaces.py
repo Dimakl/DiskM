@@ -2,18 +2,13 @@ import face_recognition
 import pymysql.cursors
 import cv2
 import threading
+import json
 import time
-video_capture = cv2.VideoCapture(0)
-#TODO:clear this part of code
-my_image = face_recognition.load_image_file("me.jpg")
-my_face_encoding = face_recognition.face_encodings(my_image)[0]
+import numpy
 
-students_encodings = [
-                    my_face_encoding
-                     ]
-students_data = [
-                "Dima"
-                ]
+video_capture = cv2.VideoCapture(0)
+students_encodings = []
+students_data = []
 
 HOST = 'localhost'
 USER = 'root'
@@ -32,17 +27,26 @@ def get_data():
             with connection.cursor() as cursor:
                 sql = "SELECT * FROM `students`"
                 cursor.execute(sql)
+                change_students_data = []
+                change_students_encodings = []
                 result = cursor.fetchone()
                 while result is not None:
                     print(result)
+                    change_students_data.append([result['name'],result['surname'],result['middle_name'],result['class_let'],result['phone']])
+                    change_students_encodings.append(numpy.asarray(json.loads(result['face_enc'])))
                     result = cursor.fetchone()
+                global students_data
+                global students_encodings
+                students_data = change_students_data
+                students_encodings = change_students_encodings
+                print(students_data)
+                print(change_students_data)
         finally:
             connection.close()
             time.sleep(60)
 
 t = threading.Thread(target=get_data)
 t.start()
-print (my_face_encoding)
 face_locations = []
 face_encodings = [] #TODO: parse endcodings from MySQL DB
 face_names = [] #TODO:change to data about students
@@ -57,32 +61,35 @@ while True:
     if process_this_frame:
         face_locations = face_recognition.face_locations(rgb_small_frame)
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
-        
         face_names = []
         for face_encoding in face_encodings:
             matches = face_recognition.compare_faces(students_encodings, face_encoding)
-            name = "Unknown"
-            
+            person_data = ['???','???','???','?','Unknown']
             if True in matches:
                 first_match_index = matches.index(True)
-                name = students_data[first_match_index]
+                person_data = students_data[first_match_index]
             
-            face_names.append(name)
+            face_names.append(person_data)
 
     process_this_frame = not process_this_frame
     
     
-    for (top, right, bottom, left), name in zip(face_locations, face_names):
+    for (top, right, bottom, left), data in zip(face_locations, face_names):
         top *= 4
         right *= 4
         bottom *= 4
         left *= 4
-        
         cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
         
         cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
         font = cv2.FONT_HERSHEY_DUPLEX
-        cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1) #TODO: change the type of output info
+        outp_text = data[1]
+        text_size = 1.0
+        if (len(outp_text) > 10):
+            text_size = 0.8
+        if (len(outp_text) > 20):
+            text_size = 0.6
+        cv2.putText(frame, outp_text, (left + 6, bottom - 6), font, text_size, (255, 255, 255), 1)
 
     cv2.imshow('Video', frame)
 
